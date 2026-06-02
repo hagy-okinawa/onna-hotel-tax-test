@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>宿泊税 計算ツール（試作）｜恩納村 税務課</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Noto Sans JP", "Hiragino Sans", "Meiryo", sans-serif;
+    font-size: 14px;
+    background: #f5f5f3;
+    color: #1a1a1a;
+    min-height: 100vh;
+  }
+
+  /* ヘッダー */
+  header {
+    background: #0F6E56;
+    color: #fff;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header .logo {
+    width: 36px;
+    height: 36px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  header .title { font-size: 15px; font-weight: 600; }
+  header .sub   { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+  header .badge {
+    margin-left: auto;
+    font-size: 11px;
+    padding: 3px 10px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.3);
+    white-space: nowrap;
+  }
+
+  /* お知らせバー */
+  .notice {
+    background: #FAEEDA;
+    border-bottom: 1px solid #f0d0a0;
+    padding: 8px 20px;
+    font-size: 12px;
+    color: #633806;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* メインレイアウト */
+  .main {
+    max-width: 860px;
+    margin: 20px auto;
+    padding: 0 16px 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* カード共通 */
+  .card {
+    background: #fff;
+    border: 1px solid #e0e0db;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 12px 16px;
+    background: #f9f9f7;
+    border-bottom: 1px solid #e0e0db;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1a1a1a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-header .icon { color: #0F6E56; font-size: 16px; }
+  .card-body { padding: 16px; }
+
+  /* フォームグリッド */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .form-grid.full { grid-template-columns: 1fr; }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: #555; }
+  .field input, .field select {
+    padding: 8px 10px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: #fff;
+    color: #1a1a1a;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: #0F6E56;
+    box-shadow: 0 0 0 3px rgba(15,110,86,0.12);
+  }
+  .field .hint { font-size: 11px; color: #888; line-height: 1.5; margin-top: 2px; }
+
+  /* セクション区切り */
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #888;
+    letter-spacing: 0.06em;
+    padding: 8px 0 4px;
+    border-bottom: 1px solid #e8e8e4;
+    margin-bottom: 10px;
+  }
+
+  /* 泊ごと入力 */
+  .nights-container { display: flex; flex-direction: column; gap: 8px; }
+  .night-row {
+    background: #f9f9f7;
+    border: 1px solid #e0e0db;
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .night-row-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .night-row-header .lbl {
+    font-size: 12px;
+    font-weight: 600;
+    color: #0F6E56;
+  }
+  .night-row-header .del-btn {
+    font-size: 12px;
+    color: #999;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .night-row-header .del-btn:hover { background: #fee; color: #c00; }
+  .night-row .form-grid { grid-template-columns: 1fr 1fr; }
+  .night-row .field label { font-size: 11px; }
+  .night-row .field input { padding: 6px 8px; font-size: 12px; }
+
+  /* ボタン */
+  .add-btn {
+    width: 100%;
+    padding: 8px;
+    font-size: 12px;
+    border: 1px dashed #bbb;
+    border-radius: 8px;
+    background: none;
+    color: #777;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .add-btn:hover { background: #f5f5f3; border-color: #0F6E56; color: #0F6E56; }
+
+  .calc-btn {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    background: #0F6E56;
+    color: #fff;
+    cursor: pointer;
+    letter-spacing: 0.03em;
+  }
+  .calc-btn:hover { background: #085041; }
+  .calc-btn:active { transform: scale(0.99); }
+
+  .reset-btn {
+    width: 100%;
+    padding: 9px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    background: none;
+    color: #666;
+    cursor: pointer;
+  }
+  .reset-btn:hover { background: #f5f5f3; }
+
+  /* 結果エリア */
+  #result-area { display: none; }
+
+  .result-card {
+    background: #fff;
+    border: 1px solid #e0e0db;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .result-header {
+    padding: 12px 16px;
+    background: #0F6E56;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .result-body { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+
+  .res-section {
+    background: #f9f9f7;
+    border: 1px solid #e8e8e4;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .res-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #888;
+    letter-spacing: 0.04em;
+    margin-bottom: 8px;
+  }
+  .res-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+    padding: 3px 0;
+    color: #1a1a1a;
+  }
+  .res-row .lbl { color: #555; }
+  .res-row .val { font-weight: 500; }
+  .res-row.indent { padding-left: 14px; font-size: 12px; color: #777; }
+  .res-row.indent .val { color: #555; font-weight: 400; }
+  .res-row.subtotal {
+    border-top: 1px solid #e0e0db;
+    margin-top: 6px;
+    padding-top: 8px;
+    font-weight: 600;
+  }
+
+  .total-box {
+    background: #E1F5EE;
+    border: 1px solid #9FE1CB;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .total-box .ttl { font-size: 14px; font-weight: 600; color: #085041; }
+  .total-box .amt { font-size: 26px; font-weight: 700; color: #0F6E56; }
+  .total-box .unit { font-size: 14px; font-weight: 500; color: #0F6E56; margin-left: 2px; }
+
+  .exempt-notice {
+    background: #E1F5EE;
+    border: 1px solid #9FE1CB;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #085041;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .warn-box {
+    background: #FAEEDA;
+    border: 1px solid #f0c070;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #633806;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    line-height: 1.6;
+  }
+
+  /* フッター注釈 */
+  .footnote {
+    font-size: 11px;
+    color: #999;
+    line-height: 1.7;
+    padding: 12px 16px;
+    border-top: 1px solid #e8e8e4;
+  }
+
+  /* 印刷ボタン */
+  .print-btn {
+    padding: 8px 16px;
+    font-size: 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+  }
+  .print-btn:hover { background: #f5f5f3; }
+
+  /* レスポンシブ */
+  @media (max-width: 600px) {
+    .form-grid, .form-grid.three { grid-template-columns: 1fr; }
+    .night-row .form-grid { grid-template-columns: 1fr 1fr; }
+    header .badge { display: none; }
+  }
+
+  @media print {
+    body { background: #fff; }
+    header { background: #0F6E56 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .calc-btn, .reset-btn, .add-btn, .print-btn, .notice { display: none; }
+    .card { border: 1px solid #ccc; page-break-inside: avoid; }
+    #form-section { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🏨</div>
+  <div>
+    <div class="title">恩納村 宿泊税 計算ツール</div>
+    <div class="sub">沖縄県恩納村 税務課｜令和9年2月 課税開始</div>
+  </div>
+  <div class="badge">試作版（関係者限り）</div>
+</header>
+
+<div class="notice">
+  ⚠️ このツールは計算の参考としてご活用ください。最終確認は恩納村税務課へお問い合わせください。
+</div>
+
+<div class="main">
+
+  <!-- 入力フォーム -->
+  <div class="card" id="form-section">
+    <div class="card-header">
+      <span class="icon">📋</span> 宿泊情報の入力
+    </div>
+    <div class="card-body">
+
+      <div class="section-label">基本情報</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>宿泊日（初日）</label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="field">
+          <label>消費税の扱い</label>
+          <select id="f-tax">
+            <option value="excl">税別（消費税を含まない金額）</option>
+            <option value="incl">税込（消費税を含む金額）</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid" style="margin-top:12px">
+        <div class="field">
+          <label>課税対象　人数</label>
+          <input type="number" id="f-guests" min="1" value="2" placeholder="名">
+          <span class="hint">子供も施設利用料がある場合は含める</span>
+        </div>
+        <div class="field">
+          <label>課税免除　人数</label>
+          <input type="number" id="f-exempt" min="0" value="0" placeholder="名">
+          <span class="hint">修学旅行等の証明書が必要です</span>
+        </div>
+      </div>
+
+      <div class="section-label" style="margin-top:16px">宿泊料金（泊ごと）</div>
+      <div class="nights-container" id="nights-list"></div>
+      <button class="add-btn" onclick="addNight()">＋ 泊を追加する</button>
+
+      <div class="section-label" style="margin-top:16px">追加・控除（全泊共通）</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>エキストラベッド等（合計）</label>
+          <input type="number" id="f-eb" min="0" value="0" placeholder="円">
+          <span class="hint">全泊合計額。泊数で均等按分されます</span>
+        </div>
+        <div class="field">
+          <label>連泊割引（合計）</label>
+          <input type="number" id="f-disc" min="0" value="0" placeholder="円">
+          <span class="hint">全泊合計の割引額。泊数で均等按分されます</span>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
+        <button class="calc-btn" onclick="runCalc()">計算する</button>
+        <button class="reset-btn" onclick="resetForm()">リセット</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 計算結果 -->
+  <div id="result-area">
+    <div class="result-card">
+      <div class="result-header">
+        <span>📄</span> 計算結果
+        <button class="print-btn" onclick="window.print()" style="margin-left:auto">🖨️ 印刷</button>
+      </div>
+      <div class="result-body" id="result-body"></div>
+      <div class="footnote">
+        ※ この計算結果はご参考です。最終確認は必ず恩納村税務課にお問い合わせください。<br>
+        ※ 課税免除の適用には証明書の受領・保管が必要です。
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+let nCount = 0;
+
+function addNight(roomVal, mealVal) {
+  nCount++;
+  const id = nCount;
+  const container = document.getElementById('nights-list');
+  const div = document.createElement('div');
+  div.className = 'night-row';
+  div.id = 'night-' + id;
+  div.innerHTML = `
+    <div class="night-row-header">
+      <span class="lbl">${id}泊目</span>
+      <button class="del-btn" onclick="removeNight(${id})">削除</button>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label>室料（素泊まり）</label>
+        <input type="number" id="room-${id}" min="0" value="${roomVal || ''}" placeholder="円">
+      </div>
+      <div class="field">
+        <label>食事代（この泊）</label>
+        <input type="number" id="meal-${id}" min="0" value="${mealVal || 0}" placeholder="円">
+      </div>
+    </div>`;
+  container.appendChild(div);
+}
+
+function removeNight(id) {
+  const el = document.getElementById('night-' + id);
+  if (el) el.remove();
+}
+
+function resetForm() {
+  document.getElementById('f-date').value = '';
+  document.getElementById('f-tax').value = 'excl';
+  document.getElementById('f-guests').value = 2;
+  document.getElementById('f-exempt').value = 0;
+  document.getElementById('f-eb').value = 0;
+  document.getElementById('f-disc').value = 0;
+  document.getElementById('nights-list').innerHTML = '';
+  nCount = 0;
+  addNight();
+  document.getElementById('result-area').style.display = 'none';
+}
+
+function fmt(n) {
+  return Math.round(n).toLocaleString('ja-JP');
+}
+
+function runCalc() {
+  const taxIncl  = document.getElementById('f-tax').value === 'incl';
+  const guests   = Math.max(1, parseInt(document.getElementById('f-guests').value) || 1);
+  const exempt   = Math.max(0, parseInt(document.getElementById('f-exempt').value) || 0);
+  const taxable  = Math.max(0, guests - exempt);
+  const date     = document.getElementById('f-date').value;
+  const ebTotal  = parseFloat(document.getElementById('f-eb').value) || 0;
+  const discTotal= parseFloat(document.getElementById('f-disc').value) || 0;
+
+  // 泊ごと入力を収集
+  const nightInputs = [];
+  for (let i = 1; i <= nCount; i++) {
+    const ri = document.getElementById('room-' + i);
+    if (!ri) continue;
+    let room = parseFloat(ri.value) || 0;
+    const meal = parseFloat(document.getElementById('meal-' + i)?.value) || 0;
+    nightInputs.push({ room, meal });
+  }
+
+  if (nightInputs.length === 0) {
+    alert('少なくとも1泊分の室料を入力してください。');
+    return;
+  }
+
+  const numNights = nightInputs.length;
+
+  // 消費税控除（税込の場合）
+  const nightsProcessed = nightInputs.map(n => {
+    let room = n.room;
+    if (taxIncl) room = Math.round(room / 1.1);
+    return { room, meal: n.meal };
+  });
+
+  // EB・割引の按分
+  const ebPerNight   = numNights > 0 ? Math.round(ebTotal   / numNights) : 0;
+  const discPerNight = numNights > 0 ? Math.round(discTotal / numNights) : 0;
+
+  // 各泊の計算
+  const rows = [];
+  let grandTotal = 0;
+  let hasMax = false;
+
+  for (let i = 0; i < nightInputs.length; i++) {
+    const n = nightsProcessed[i];
+
+    // 素泊まり室料 = 室料 - 食事代 - 按分割引 + 按分EB
+    const roomFee = Math.max(0, n.room - n.meal - discPerNight);
+    const base    = roomFee + ebPerNight; // EB加算後
+
+    // 1人あたり課税標準額（千円未満切り捨て）
+    const perPerson  = taxable > 0 ? Math.floor(base / taxable / 1000) * 1000 : 0;
+
+    // 税額（上限2,000円）
+    const taxPP   = Math.min(Math.round(perPerson * 0.02), 2000);
+    const nightTax = taxPP * taxable;
+
+    if (taxPP >= 2000) hasMax = true;
+    grandTotal += nightTax;
+
+    rows.push({
+      label:    (i + 1) + '泊目',
+      roomFee,
+      ebPerNight,
+      discPerNight,
+      base,
+      perPerson,
+      taxPP,
+      taxable,
+      nightTax
+    });
+  }
+
+  // 結果HTML生成
+  const body = document.getElementById('result-body');
+  body.innerHTML = '';
+
+  // 概要
+  let summaryHTML = `<div class="res-section">
+    <div class="res-section-title">宿泊概要</div>`;
+  if (date) summaryHTML += `<div class="res-row"><span class="lbl">宿泊日</span><span class="val">${date}〜 ${numNights}泊</span></div>`;
+  else      summaryHTML += `<div class="res-row"><span class="lbl">泊数</span><span class="val">${numNights}泊</span></div>`;
+  summaryHTML += `<div class="res-row"><span class="lbl">宿泊人数</span><span class="val">${guests}名（うち課税対象 ${taxable}名${exempt > 0 ? '、免除 ' + exempt + '名' : ''}）</span></div>`;
+  if (taxIncl) summaryHTML += `<div class="res-row"><span class="lbl">消費税</span><span class="val">税込金額から税抜換算（÷1.1）</span></div>`;
+  if (ebTotal > 0)   summaryHTML += `<div class="res-row"><span class="lbl">EB等追加（合計）</span><span class="val">${fmt(ebTotal)}円 → 1泊 ${fmt(ebPerNight)}円に按分</span></div>`;
+  if (discTotal > 0) summaryHTML += `<div class="res-row"><span class="lbl">連泊割引（合計）</span><span class="val">−${fmt(discTotal)}円 → 1泊 −${fmt(discPerNight)}円に按分</span></div>`;
+  summaryHTML += `</div>`;
+
+  // 泊ごと内訳
+  let detailHTML = `<div class="res-section"><div class="res-section-title">泊ごとの内訳</div>`;
+  for (const r of rows) {
+    const ebStr   = r.ebPerNight   > 0 ? ` + EB ${fmt(r.ebPerNight)}円` : '';
+    const discStr = r.discPerNight > 0 ? ` − 割引 ${fmt(r.discPerNight)}円` : '';
+    detailHTML += `
+      <div class="res-row" style="font-weight:600;margin-top:6px">
+        <span>${r.label}</span><span class="val">${fmt(r.nightTax)}円</span>
+      </div>
+      <div class="res-row indent"><span class="lbl">素泊まり室料</span><span class="val">${fmt(r.roomFee)}円${ebStr}${discStr}</span></div>
+      <div class="res-row indent"><span class="lbl">1人あたり課税標準額（千円未満切捨）</span><span class="val">${fmt(r.perPerson)}円</span></div>
+      <div class="res-row indent"><span class="lbl">税額（×${r.taxable}名）</span><span class="val">${fmt(r.taxPP)}円 × ${r.taxable}名 = ${fmt(r.nightTax)}円</span></div>`;
+  }
+  detailHTML += `</div>`;
+
+  // 合計
+  const totalHTML = `
+    <div class="total-box">
+      <span class="ttl">合計宿泊税</span>
+      <div><span class="amt">${fmt(grandTotal)}</span><span class="unit">円</span></div>
+    </div>`;
+
+  // 課税免除注意
+  let exemptHTML = '';
+  if (exempt > 0) {
+    exemptHTML = `
+      <div class="exempt-notice">
+        🛡️ <span>課税免除（${exempt}名）が適用されています。<strong>証明書の受領・保管</strong>が必要です。</span>
+      </div>`;
+  }
+
+  // 上限適用注意
+  let warnHTML = '';
+  if (hasMax) {
+    warnHTML = `
+      <div class="warn-box">
+        ⚠️ <span>上限（1人1泊 2,000円）が適用されている泊があります。1人あたり宿泊料金が100,000円を超えている場合に適用されます。</span>
+      </div>`;
+  }
+
+  body.innerHTML = summaryHTML + detailHTML + totalHTML + exemptHTML + warnHTML;
+  document.getElementById('result-area').style.display = 'block';
+
+  // 結果へスクロール
+  document.getElementById('result-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// 初期化
+addNight();
+</script>
+</body>
+</html>
